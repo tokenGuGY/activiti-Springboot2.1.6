@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Insert title here</title>
+    <link rel="stylesheet" href="../layui-v2.5.4/layui/css/layui.css" media="all" />
+</head>
+<body>
+<div>
+    <div class="layui-content">
+        <div class="layui-row">
+            <div class="layui-card">
+                <div class="layui-card-body">
+                    <div class="form-box">
+                        <button class="layui-btn layui-btn-blue" id="add"><i class="layui-icon">&#xe654;</i>新增</button>
+                        <table id="dt-table" class="table table-striped table-bordered table-hover" style="width:100%" lay-filter="dt-table"></table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+</body>
+</html>
+<script type="text/html" id="operateTpl">
+    <a title="编辑" lay-event="edit" href="javascript:;">
+        <i class="layui-icon">&#xe642;</i>
+    </a>
+    <a title="发布" lay-event="deploy" href="javascript:;">
+        <i class="layui-icon">&#x1005;</i>
+    </a>
+    <a title="删除" lay-event="del" href="javascript:;">
+        <i class="layui-icon">&#xe640;</i>
+    </a>
+</script>
+<script type="text/javascript" src="../layui-v2.5.4/layui/layui.js"></script>
+<script type="text/javascript">
+    layui.use(['table', 'jquery','form','laypage','layer'], function(){
+        var table = layui.table,
+            laypage = layui.laypage, //分页
+            layer =layui.layer,//弹层
+            $ = layui.jquery,
+            form = layui.form;
+
+        var baseUrl="http://127.0.0.1:8080";
+
+        var tableIns =table.render({
+            elem: '#dt-table',
+            cellMinWidth: 80,     //单元格最小宽度
+            limit:20,
+            height: 'full-100',   //全屏高度
+            toolbar:'<div class="layui-table-tool-self"><div class="layui-inline" title="批量删除" lay-event="delete"><i class="layui-icon layui-icon-delete"></i></div></div>',
+            defaultToolbar:['filter','exports','print'],
+            method:'post',        //请求方式
+            contentType:'application/json; charset=utf-8',   //参数编码
+            url:baseUrl+'/act/pageList',            //请求地址
+            cols: [
+                [{
+                    type: 'checkbox', fixed: 'left'
+                }, {
+                    field: 'rowNum', title: '序号', sort: true,width:80, fixed: 'left',templet: function(d){
+                        return '<span style="color: #c00;">'+d.LAY_INDEX+'</span>'
+                    }
+                },{
+                    field: 'name', title: '模块名', width:250,sort: true,fixed: 'left'
+                }, {
+                    field: 'version', title: '版本', width:100, sort: true
+                }, {
+                    field: 'createTime', title: '创建时间', sort: true,
+                }, {
+                    field: 'bs_remarks', title: '描述', sort: true
+                }, {
+                        field: 'operate', title: '操作', toolbar: '#operateTpl', width:150,unresize: true,fixed: 'right'
+                }]
+            ],
+            event: true,
+            page: true,
+            done:function(){
+                tdTitle();
+            }
+        });
+
+        //关键词搜索
+        $("#searchBt").click(function(){
+            reload();
+        });
+
+        //重载数据
+        function reload(){
+            tableIns.reload({
+                where: { //设定异步数据接口的额外参数，任意设
+                    keywords:  $("#keywords").val().trim()
+                }
+                ,page: {
+                    curr: 1 //重新从第 1 页开始
+                }
+            });
+        }
+
+        function tdTitle(){
+            $(".layui-table th").each(function(index,element){
+                $(element).attr('title',$(element).text());
+            });
+            $(".layui-table td").each(function(index,element){
+                $(element).attr('title',$(element).text());
+            });
+        }
+
+
+        $("#add").on('click',function(){
+           $.ajax({
+               type:'post',
+               url:baseUrl+"/act/createModel",
+               data:JSON.stringify({}),
+               contentType:'application/json; charset=utf-8',
+               success:function (data) {
+                   var id= data.data;
+                   active.add(id);
+               }
+
+           })
+        });
+
+        //监听工具条
+        table.on('tool(dt-table)', function (obj) {
+            var data = obj.data;
+            var id = data.id;
+            if (obj.event === 'open') {
+                open(data.id);
+            }else if(obj.event === 'edit'){
+                window.location.href=baseUrl+'/editor?modelId='+id;
+                /*var index =layer.open({
+                    type: 2 //此处以iframe举例
+                    ,title: '添加流程'
+                    ,area: ['70%', '80%']
+                    ,shade: 0
+                    ,shadeClose: false,
+                    shade: 0.4,
+                    title: '编辑流程',
+                    content: baseUrl+'/editor?modelId='+data.id
+                });
+                layer.full(index);*/
+            }else if(obj.event === 'del') {
+                layer.confirm('确定删除[' + data.name + ']？', {
+                    btn: ['确定', '取消'] //按钮
+                }, function () {
+                    active.del(data.id);
+                }, function () {
+                });
+            }else if(obj.event === 'deploy'){ //发布
+                layer.confirm('确定发布[' + data.name + ']？', {
+                    btn: ['确定', '取消'] //按钮
+                }, function () {
+                    active.deployment(data.id);
+                }, function () {
+                });
+            }
+
+        });
+        //触发事件
+        var active = {
+            add: function(id){
+                var that = this;
+                //多窗口模式，层叠置顶
+                window.location.href=baseUrl+'/editor?modelId='+id;
+            }
+            ,confirmTrans: function(){
+                //配置一个透明的询问框
+                layer.msg('大部分参数都是可以公用的<br>合理搭配，展示不一样的风格', {
+                    time: 20000, //20s后自动关闭
+                    btn: ['明白了', '知道了', '哦']
+                });
+            },
+            del:function(id){
+                $.ajax({
+                    url: baseUrl+"/act/"+id,
+                    type: "delete",
+                    success: function (data) {
+                        if(data.code=='0'){
+                            layer.msg(data.msg, {icon: 6});
+                            tableIns.reload();
+                        }else{
+                            layer.msg("删除失败！！", {icon: 5});
+                        }
+                    }
+                });
+            },
+            open:function(id){
+
+            },
+            deployment:function (id) {
+                $.ajax({
+                    url: baseUrl+"/act/deployment/"+id,
+                    type: "post",
+                    data:JSON.stringify({}),
+                    contentType:'application/json; charset=utf-8',
+                    success: function (data) {
+                       if(data.code=='0'){
+                           layer.msg(data.msg, {icon: 6});
+                           tableIns.reload();
+                       }else{
+                           layer.msg("发布失败！！", {icon: 5});
+                       }
+                    }
+                });
+
+            }
+        }
+    });
+</script>
+
+
